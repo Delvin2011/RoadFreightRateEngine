@@ -2,6 +2,7 @@ package com.vantageit.road_freight_rate_engine.rateengine.domain.repository;
 
 import com.vantageit.road_freight_rate_engine.rateengine.domain.entity.RoadFreightRate;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,6 +19,32 @@ public interface RoadFreightRateRepository extends JpaRepository<RoadFreightRate
             String laneKey, String vehicleCategoryCode, String loadType, LocalDate asOfDate) {
         return findActiveRate(laneKey, vehicleCategoryCode, loadType, true, asOfDate);
     }
+
+    /**
+     * Unlike {@link #findActiveRate}, more than one row can legitimately match — e.g. a lane with
+     * both a {@code flat} and a {@code per_km} rate row active simultaneously. Stage 6's
+     * {@code RateRowResolver} is what decides which row to use when there's more than one.
+     */
+    default List<RoadFreightRate> findActiveRates(
+            String laneKey, String vehicleCategoryCode, String loadType, LocalDate asOfDate) {
+        return findActiveRates(laneKey, vehicleCategoryCode, loadType, true, asOfDate);
+    }
+
+    @Query("""
+            SELECT r FROM RoadFreightRate r
+            WHERE r.laneKey = :laneKey
+              AND r.vehicleCategory.code = :vehicleCategoryCode
+              AND r.loadType = :loadType
+              AND r.active = :active
+              AND r.effectiveFrom <= :asOfDate
+              AND (r.effectiveTo IS NULL OR r.effectiveTo >= :asOfDate)
+            """)
+    List<RoadFreightRate> findActiveRates(
+            @Param("laneKey") String laneKey,
+            @Param("vehicleCategoryCode") String vehicleCategoryCode,
+            @Param("loadType") String loadType,
+            @Param("active") boolean active,
+            @Param("asOfDate") LocalDate asOfDate);
 
     /**
      * {@code active} is bound as a real JDBC parameter rather than inlined as a JPQL boolean
