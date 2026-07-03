@@ -37,6 +37,18 @@ Pipeline Stage 1 ("input validation & normalisation"): pure business-rule valida
 - `INCOMPATIBLE_CARGO_CLASS` messages sort the permitted-options list before joining it into text — `Set.of()`'s iteration order is unspecified, so this keeps the message deterministic and safe to assert exactly in tests.
 - Verified with `InputValidationServiceTest` (33 cases): every error code, the accumulate-don't-short-circuit behavior (a fixture with 3 simultaneous failures), the full compatibility matrix, exact boundary behavior at each legal limit (at-limit passes, just-over fails), flags/errors coexisting and staying independent, and exact `INCOMPATIBLE_CARGO_CLASS` message text.
 
+### Stage 4 — Lane Resolution & Distance Computation (`...rateengine.laneresolution`)
+
+Pipeline Stage 2: resolves an already-validated request's `origin_location_id`/`destination_location_id` to zones, builds the lane key, and resolves the distance. Top-level package, sibling to `...validation` — consistent with Stage 3 rather than nested under `...pipeline` (`...pipeline` stays reserved for genuinely cross-stage shared utilities like `ChargeableWeightCalculator`).
+
+- **Prerequisite schema, missing from Stage 2**: `V6__create_location_and_distance_tables.sql` adds `locations` (what the request's location ids refer to) and `lane_distances` (the pre-computed distance matrix), with entities `Location`/`LaneDistance` and repositories under `...domain.entity`/`...domain.repository`, following Stage 2's conventions (UUID PKs, no setters, explicit `created_at`). `V7__seed_locations_and_distances.sql` seeds locations/distances plus a new `HARARE` zone — none of Stage 2's seeded zones were outside South Africa, and a cross-border fixture needs a destination-side zone.
+- **`LaneResolutionService`** — takes the validated `RateComputeRequest`, returns a `LaneResolutionResult` (`laneKey`, `distanceKm`, `originZoneId`/`destinationZoneId`, `distanceOverrideApplied`). Explicit Javadoc precondition: assumes Stage 3 validation already ran (e.g. does not re-verify `border_post_id` is present for cross-border routes).
+- **Distance resolution precedence**: an operator-supplied `route.distance_km` is used verbatim and bypasses the `lane_distances` lookup entirely, including for border-post-specific distances; otherwise resolves via `LaneDistanceRepository` keyed on origin zone, destination zone, **and `border_post_id`** — the same zone pair can have a domestic distance (null border post) and one or more distinct cross-border distances (different border posts) as separate rows.
+- **Null-safe border-post lookup**: `LaneDistanceRepository.findActiveDistance` uses an explicit `LEFT JOIN ld.borderPost bp` rather than the implicit path `ld.borderPost.id` — implicit path navigation compiles to an INNER JOIN, which would silently exclude every domestic (null border post) row from ever matching. Verified against **both** H2 and real SQL Server, since this is new null-handling JPQL territory beyond the boolean-literal issue Stage 2 already found.
+- **Three explicit exception types** (`UnknownLocationException`, `UnmappedZoneException`, `DistanceNotFoundException`), each carrying structured detail (location id + role, lane key + border post, etc.) rather than a bare message, so a later stage can translate them into the API error shape without re-deriving context. `UnmappedZoneException` (a `Location` with a dangling `zone_id`) can't occur through the real FK constraint, so it's covered by a separate Mockito unit test (`LaneResolutionServiceUnitTest`) mocking a `Zone` to simulate a Hibernate lazy proxy backed by a dangling reference.
+- **`distance_override_reason` deliberately not added**: the Business Rules tab wants a reason recorded when an operator overrides distance, but `RouteRequest` (Stage 1) has no such field. Adding it properly means a Stage 1 DTO change plus an unspecified Stage 3 validation rule — real scope across two already-shipped stages, not a Stage 4 change. Explicitly deferred and tracked (see the `distance_override_reason_deferred` project memory), not left as an open-ended code comment.
+- Verified with `LaneResolutionServiceTest` (12 cases, run against both H2 and real SQL Server) covering domestic/cross-border/override resolution, unknown origin/destination (including both invalid simultaneously, confirming origin is reported first), no-matching-distance, an inactive row with no active alternative, two different border posts for the same zone pair resolving to distinct distances, and a lane-key-ordering regression test (`JHB_METRO:BFN_METRO` vs. `BFN_METRO:JHB_METRO` are not treated as equivalent).
+
 ## Prerequisites
 
 - JDK 17
@@ -68,7 +80,7 @@ export SPRING_DATASOURCE_PASSWORD="your-password"
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-Flyway runs automatically on startup and creates/seeds the `items` table plus the rate engine's reference and rate tables (`zones`, `border_posts`, `vehicle_categories`, `road_freight_rates`, `surcharge_rates`).
+Flyway runs automatically on startup and creates/seeds the `items` table plus the rate engine's reference, rate, and lane resolution tables (`zones`, `border_posts`, `vehicle_categories`, `road_freight_rates`, `surcharge_rates`, `locations`, `lane_distances`).
 
 ## Test
 
