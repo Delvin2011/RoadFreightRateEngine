@@ -44,6 +44,9 @@ public class SurchargeRate {
     @Column(name = "rate_value", nullable = false, precision = 10, scale = 4, updatable = false)
     private BigDecimal rateValue;
 
+    @Column(name = "currency", nullable = false, length = 3, updatable = false)
+    private String currency;
+
     /** Comma-delimited vehicle_categories.code list. Null means all vehicle categories. */
     @Column(name = "applies_to_vehicle_categories", updatable = false)
     private String appliesToVehicleCategories;
@@ -95,7 +98,7 @@ public class SurchargeRate {
 
     @Override
     public String toString() {
-        return "SurchargeRate{id=%s, surchargeCode=%s, surchargeType=%s, rateValue=%s, appliesToRouteTypes=%s, effectiveFrom=%s, effectiveTo=%s, active=%s}"
-                .formatted(id, surchargeCode, surchargeType, rateValue, appliesToRouteTypes, effectiveFrom, effectiveTo, active);
+        return "SurchargeRate{id=%s, surchargeCode=%s, surchargeType=%s, rateValue=%s, currency=%s, appliesToRouteTypes=%s, effectiveFrom=%s, effectiveTo=%s, active=%s}"
+                .formatted(id, surchargeCode, surchargeType, rateValue, currency, appliesToRouteTypes, effectiveFrom, effectiveTo, active);
     }
 }
