@@ -67,8 +67,9 @@ class VehicleSelectionServiceTest {
         // gross=3000, volume=10 -> chargeable weight = max(3000, 10*333) = 3330kg, within three
         // vehicles' capacity (4T_RIGID/8T_RIGID/34T_SEMI); 7T_RIGID_LOWRATE's capacity (3200kg) is
         // deliberately just below this, so it's excluded here and has its own isolated fixture in
-        // minimumChargeFlooringChangesTheWinner instead. Seeded costs on JHB_METRO:BFN_METRO:
-        // 8T_RIGID=4776.00, 34T_SEMI=7363.00, 4T_RIGID=7960.00.
+        // minimumChargeFlooringChangesTheWinner instead. Cost = rate_per_km * distance *
+        // (chargeable_weight_kg / 1000) on JHB_METRO:BFN_METRO (distance 398km):
+        // 8T_RIGID=15904.08, 34T_SEMI=24518.79, 4T_RIGID=26506.80.
         CargoRequest cargo = cargo(CargoClass.GENERAL, LoadType.FTL, new BigDecimal("3000"), new BigDecimal("10"));
         RateComputeRequest request = request(cargo, false);
 
@@ -83,7 +84,7 @@ class VehicleSelectionServiceTest {
     void dedicatedVehiclePicksSmallestCapacityNotCheapest() {
         // Same eligible set as the cost-efficient test, but dedicated_vehicle=true. 4T_RIGID is
         // the smallest by max_weight_kg (4000 < 8000 < 34000) despite being the most expensive
-        // (7960.00, vs. 8T_RIGID's 4776.00) — proves cost is ignored on this path.
+        // (26506.80, vs. 8T_RIGID's 15904.08) — proves cost is ignored on this path.
         CargoRequest cargo = cargo(CargoClass.GENERAL, LoadType.FTL, new BigDecimal("3000"), new BigDecimal("10"));
         RateComputeRequest request = request(cargo, true);
 
@@ -100,17 +101,17 @@ class VehicleSelectionServiceTest {
         // within 7T_RIGID_LOWRATE's capacity (3200kg) and 8T_RIGID's, but excludes 4T_RIGID/
         // 34T_SEMI from mattering here since neither can beat 8T_RIGID's cost regardless (this test
         // only asserts on the winner, not eligibleVehicleCount, so their presence is immaterial).
-        // Without minimum_charge, 7T_RIGID_LOWRATE's raw cost (1.00 * 398km = 398.00) would beat
-        // every other vehicle by a wide margin — but its minimum_charge=10000.00 floors it above
-        // all of them, so 8T_RIGID (4776.00, no flooring effect since its raw cost already exceeds
-        // its own minimum_charge) wins instead.
+        // Without minimum_charge, 7T_RIGID_LOWRATE's raw cost (1.0000 * 398km * 1665kg / 1000 =
+        // 662.67) would beat every other vehicle by a wide margin — but its minimum_charge=10000.00
+        // floors it above all of them, so 8T_RIGID (7952.04, no flooring effect since its raw cost
+        // already exceeds its own minimum_charge) wins instead.
         CargoRequest cargo = cargo(CargoClass.GENERAL, LoadType.FTL, new BigDecimal("1500"), new BigDecimal("5"));
         RateComputeRequest request = request(cargo, false);
 
         VehicleSelectionResult result = vehicleSelectionService.selectVehicle(request, JHB_BFN_DOMESTIC);
 
         assertThat(result.selectedVehicleCategoryCode())
-                .as("7T_RIGID_LOWRATE's floored cost (10000.00) loses to 8T_RIGID (4776.00), even though its raw per-km cost (398.00) would otherwise win")
+                .as("7T_RIGID_LOWRATE's floored cost (10000.00) loses to 8T_RIGID (7952.04), even though its raw per-km cost (662.67) would otherwise win")
                 .isEqualTo("8T_RIGID");
     }
 
@@ -133,11 +134,11 @@ class VehicleSelectionServiceTest {
         // KNOWN GAP, pinned rather than fixed — see the vehicle_selection_currency_comparison_deferred
         // project memory. gross=1900, volume=3 -> chargeable weight = max(1900, 999) = 1900kg,
         // which excludes 5T_RIGID_A/B (capacity 1800kg) so this test is isolated from the tie-
-        // breaking fixture. 8T_RIGID's ZAR rate costs 12250.00; 2T_RIGID's USD rate costs a
-        // numerically smaller 6125.00, so it wins this comparison even though no currency
-        // conversion has been applied — 6125 USD is not actually cheaper than 12250 ZAR in real
-        // terms. If this test ever starts failing because FX conversion was implemented, update it
-        // (and the memory) together.
+        // breaking fixture. 8T_RIGID's ZAR rate costs 23275.00; 2T_RIGID's USD rate costs a
+        // numerically smaller 11637.50, so it wins this comparison even though no currency
+        // conversion has been applied — 11637.50 USD is not actually cheaper than 23275.00 ZAR in
+        // real terms. If this test ever starts failing because FX conversion was implemented,
+        // update it (and the memory) together.
         CargoRequest cargo = cargo(CargoClass.GENERAL, LoadType.FTL, new BigDecimal("1900"), new BigDecimal("3"));
         RateComputeRequest request = request(cargo, false);
 
@@ -145,10 +146,10 @@ class VehicleSelectionServiceTest {
 
         assertThat(result.selectedVehicleCategoryCode())
                 .as("KNOWN GAP (see vehicle_selection_currency_comparison_deferred memory): 2T_RIGID's "
-                        + "raw USD cost (6125.00) is numerically lower than 8T_RIGID's ZAR cost (12250.00) "
-                        + "and wins with no FX conversion applied, even though 6125 USD is actually far more "
-                        + "expensive than 12250 ZAR in real terms. If this assertion starts failing because "
-                        + "FX conversion was implemented, update this test and the memory together.")
+                        + "raw USD cost (11637.50) is numerically lower than 8T_RIGID's ZAR cost (23275.00) "
+                        + "and wins with no FX conversion applied, even though 11637.50 USD is actually far "
+                        + "more expensive than 23275.00 ZAR in real terms. If this assertion starts failing "
+                        + "because FX conversion was implemented, update this test and the memory together.")
                 .isEqualTo("2T_RIGID");
     }
 
