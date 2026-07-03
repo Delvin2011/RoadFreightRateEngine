@@ -49,6 +49,18 @@ Pipeline Stage 2: resolves an already-validated request's `origin_location_id`/`
 - **`distance_override_reason` deliberately not added**: the Business Rules tab wants a reason recorded when an operator overrides distance, but `RouteRequest` (Stage 1) has no such field. Adding it properly means a Stage 1 DTO change plus an unspecified Stage 3 validation rule — real scope across two already-shipped stages, not a Stage 4 change. Explicitly deferred and tracked (see the `distance_override_reason_deferred` project memory), not left as an open-ended code comment.
 - Verified with `LaneResolutionServiceTest` (12 cases, run against both H2 and real SQL Server) covering domestic/cross-border/override resolution, unknown origin/destination (including both invalid simultaneously, confirming origin is reported first), no-matching-distance, an inactive row with no active alternative, two different border posts for the same zone pair resolving to distinct distances, and a lane-key-ordering regression test (`JHB_METRO:BFN_METRO` vs. `BFN_METRO:JHB_METRO` are not treated as equivalent).
 
+### Stage 5 — Vehicle Type Selection (`...rateengine.vehicleselection`)
+
+Pipeline Stage 3: takes the validated request plus the Stage 4 lane result and selects a vehicle category — the eligible set by load type/capacity/zone restriction, then either the cheapest (default) or the smallest viable one (`dedicated_vehicle = true`), followed by a vehicle-aware overweight sanity check.
+
+- **Prerequisite schema, missing from Stage 2**: `V9__extend_vehicle_categories_and_load_types.sql` adds the `vehicle_category_load_types` join table (a category can support several load types) and `zone_restriction`/`requires_permit` on `vehicle_categories`. `V11__add_zone_restriction_check_constraint.sql` later closes a gap — `zone_restriction` shipped in V9 without a `CHECK` constraint; V11 adds one, paired with a new `ZoneRestriction` enum + `ZoneRestrictionConverter` on the Java side (mirroring `RateBasis`/`RateBasisConverter`) instead of a raw string. `V10`/`V12` seed vehicles and rates.
+- **Three-phase `VehicleSelectionService`**: `findEligibleVehicles` (Phase 1, throws `NoEligibleVehicleException` if nothing qualifies — never falls back to the largest vehicle) → `selectVehicle` (Phase 2, cheapest-or-smallest) → `checkVehicleCapacity` (Phase 3, a defensive final check against the *selected vehicle's actual* `max_weight_kg` — this is the vehicle-aware overweight check Stage 3 explicitly deferred; should be unreachable given Phase 1's filtering, and is exercised directly with an inconsistent input to prove the check itself works, not just that it's unreachable).
+- **`ShipmentCostEstimator`** (`...pipeline.common`, not `...vehicleselection`, since Stage 6 needs identical math) — computes a `road_freight_rates` row's cost for a shipment per `rate_basis` (`per_km × distance`, `per_ton × chargeable_weight/1000`, `flat`, `per_pallet × pallet_count`, `per_cbm × volume`), applying `minimum_charge` as a floor.
+- **Deterministic tie-breaking**: both the cost-efficient and dedicated-minimum-viable comparators have an explicit secondary sort key (vehicle code) — without it, a genuine cost or capacity tie would resolve based on incidental DB row order rather than being guaranteed reproducible.
+- **`VehicleSelectionResult`** carries `requiresPermit` (the selected vehicle's own flag) alongside `selectedVehicleCategoryId`/`Code`, `selectionReason`, `eligibleVehicleCount` — an explicit decision to include it, so a later permit-surcharge pipeline stage doesn't need to re-query `vehicle_categories`.
+- **Currency comparison is a known, pinned gap, not a fix**: cost-efficient selection compares raw `BigDecimal` cost across candidate rates with no FX conversion — a numerically smaller USD rate can "win" against a larger ZAR rate even when it's actually more expensive in real terms. Tracked as the `vehicle_selection_currency_comparison_deferred` project memory and pinned by a test that asserts the specific current (wrong) winner, so a future FX fix can't silently change this behavior unnoticed.
+- Verified with `VehicleSelectionServiceTest` (13 cases, run against both H2 and real SQL Server): simple/cost-efficient/dedicated selection, zone-restriction exclusion, no-eligible-vehicle and no-rate-for-lane failures, the Phase 3 defensive check called directly, reefer load-type eligibility, deterministic tie-breaking, minimum_charge flooring changing the winner, the mixed-currency gap pinned, a single-eligible-vehicle dedicated path, and a cross-border-lane happy path (all prior happy-path cases were domestic).
+
 ## Prerequisites
 
 - JDK 17
@@ -80,7 +92,7 @@ export SPRING_DATASOURCE_PASSWORD="your-password"
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-Flyway runs automatically on startup and creates/seeds the `items` table plus the rate engine's reference, rate, and lane resolution tables (`zones`, `border_posts`, `vehicle_categories`, `road_freight_rates`, `surcharge_rates`, `locations`, `lane_distances`).
+Flyway runs automatically on startup and creates/seeds the `items` table plus the rate engine's reference, rate, lane resolution, and vehicle selection tables (`zones`, `border_posts`, `vehicle_categories`, `road_freight_rates`, `surcharge_rates`, `locations`, `lane_distances`, `vehicle_category_load_types`).
 
 ## Test
 
@@ -99,7 +111,9 @@ H2's `MSSQLServer` compatibility mode approximates T-SQL *syntax*, not SQL Serve
 
 **Rule: any JPQL boolean predicate must be bound as a real parameter (`:active` supplied from Java), never inlined as a literal or a bare column reference.** See `RoadFreightRateRepository`/`SurchargeRateRepository` (`...rateengine.domain.repository`) for the pattern — a `default` method exposes the clean public signature while an internal `@Query` method binds `active` explicitly.
 
-**Convention going forward**: any new query method with a boolean/`BIT`-column predicate should be run against a real SQL Server instance before it's considered done — H2 passing is not sufficient evidence. To do this ad hoc without changing any config file:
+It also diverges on migration DDL, not just JPQL: SQL Server accepts `ALTER TABLE t ADD col1 type1, col2 type2` (multiple columns in one statement), but H2's `MSSQLServer` mode rejects it with a syntax error — split into separate `ALTER TABLE t ADD col1 type1;` / `ALTER TABLE t ADD col2 type2;` statements instead (see `V9__extend_vehicle_categories_and_load_types.sql`). `ALTER TABLE ... ADD CONSTRAINT ... CHECK (...)` on an existing column, by contrast, works fine on both engines.
+
+**Convention going forward**: any new query method with a boolean/`BIT`-column predicate, or any new migration using less-common DDL syntax, should be run against a real SQL Server instance before it's considered done — H2 passing is not sufficient evidence. To do this ad hoc without changing any config file:
 
 ```bash
 ./mvnw test "-Dtest=YourNewTest" \
