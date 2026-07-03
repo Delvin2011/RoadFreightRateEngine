@@ -1,0 +1,9 @@
+CREATE TABLE items (
+    id            BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    name          NVARCHAR(255) NOT NULL,
+    description   NVARCHAR(1000) NULL,
+    quantity      INT NOT NULL DEFAULT 0,
+    price         DECIMAL(19,2) NOT NULL DEFAULT 0,
+    created_at    DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

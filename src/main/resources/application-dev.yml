@@ -1,0 +1,16 @@
+logging:
+  level:
+    root: INFO
+    com.vantageit.road_freight_rate_engine: DEBUG
+spring:
+  datasource:
+    url: jdbc:sqlserver://localhost:1433;databaseName=RateEngine;encrypt=false;trustServerCertificate=true
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    username: sa
+    password: Delvin2011
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+websiteUrl: http://localhost:4242
