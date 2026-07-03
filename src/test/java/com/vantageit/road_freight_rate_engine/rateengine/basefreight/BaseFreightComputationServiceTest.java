@@ -277,6 +277,22 @@ class BaseFreightComputationServiceTest {
     }
 
     @Test
+    void perKmDirtyPrecisionRoundsToTwoDecimalPlaces() {
+        // Same class of bug as Stage 7: ShipmentCostEstimator's divide() carries 4dp internally
+        // (33.3350 * 3.00 * 1000 / 1000 = 100.0050 raw), but nothing previously rounded the final
+        // amount before it became a BaseFreightResult output. 100.0050 is exactly at the HALF_UP
+        // tie-break boundary for 2dp -> must round to 100.01, not stay at 100.0050 or truncate to
+        // 100.00. None of this test class's other fixtures exercise this: they were all authored
+        // with round numbers that happen to already be clean at 2dp, so this is the only case that
+        // actually proves the rounding step fires.
+        BaseFreightResult result = compute("BF_TEST_PERKM_DIRTY_PRECISION", LoadType.FTL, new BigDecimal("3.00"),
+                new BigDecimal("1000"), new BigDecimal("1"), null);
+
+        assertThat(result.baseFreightAmount()).isEqualByComparingTo(new BigDecimal("100.01"));
+        assertThat(result.baseFreightAmount().scale()).isEqualTo(2);
+    }
+
+    @Test
     void perTonBasisUnaffectedByStep0Fix() {
         // gross=5000, volume=1 -> chargeable=max(5000, 333)=5000. raw = 200.0000 * 5000 / 1000 =
         // 1000.0000, min_charge=50.00 doesn't floor it. PER_TON was already correct pre-fix.
@@ -342,7 +358,7 @@ class BaseFreightComputationServiceTest {
 
     private static RateComputeRequest request(CargoRequest cargo, LocalDate rateDate) {
         ServiceRequest service = new ServiceRequest(
-                ServiceLevel.STANDARD, rateDate, null, false, false, false, false, false, false);
+                ServiceLevel.STANDARD, rateDate, null, false, false, false, false, false, false, false, false);
         return new RateComputeRequest(UUID.randomUUID(), rateDate, null, cargo, service);
     }
 

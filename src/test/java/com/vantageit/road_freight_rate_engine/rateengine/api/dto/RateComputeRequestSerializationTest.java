@@ -22,6 +22,7 @@ class RateComputeRequestSerializationTest {
                 "route_type": "cross_border",
                 "border_post_id": "a1b2c3d4-e5f6-4789-a1b2-c3d4e5f6a1b2",
                 "distance_km": null,
+                "distance_override_reason": null,
                 "collection_address_type": "depot",
                 "delivery_address_type": "door_to_door"
               },
@@ -49,8 +50,10 @@ class RateComputeRequestSerializationTest {
                 "delivery_deadline": null,
                 "after_hours_collection": false,
                 "after_hours_delivery": false,
-                "tail_lift_required": false,
-                "driver_assist_required": false,
+                "tail_lift_collection": false,
+                "tail_lift_delivery": false,
+                "driver_assist_loading": false,
+                "driver_assist_offloading": false,
                 "dedicated_vehicle": false,
                 "security_escort_required": false
               }
@@ -74,6 +77,7 @@ class RateComputeRequestSerializationTest {
         assertThat(request.route().routeType()).isEqualTo(RouteType.CROSS_BORDER);
         assertThat(request.route().borderPostId()).isEqualTo(UUID.fromString("a1b2c3d4-e5f6-4789-a1b2-c3d4e5f6a1b2"));
         assertThat(request.route().distanceKm()).isNull();
+        assertThat(request.route().distanceOverrideReason()).isNull();
         assertThat(request.route().collectionAddressType()).isEqualTo(AddressType.DEPOT);
         assertThat(request.route().deliveryAddressType()).isEqualTo(AddressType.DOOR_TO_DOOR);
 

@@ -212,6 +212,7 @@ class LaneResolutionServiceTest {
                 routeType,
                 borderPostId,
                 distanceKm,
+                distanceKm != null ? "Test override reason" : null,
                 AddressType.DEPOT,
                 AddressType.DEPOT);
     }

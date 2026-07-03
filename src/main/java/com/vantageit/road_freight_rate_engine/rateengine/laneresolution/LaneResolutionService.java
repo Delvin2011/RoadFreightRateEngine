@@ -18,7 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p><b>Precondition: the request must have already passed Stage 3 ({@code InputValidationService})
  * validation.</b> This service does not re-check anything Stage 3 already guarantees — e.g. it
  * assumes {@code route.border_post_id} is non-null whenever {@code route.route_type} is
- * {@code cross_border}, and does not re-verify that itself.
+ * {@code cross_border}, and that {@code route.distance_override_reason} is non-null whenever
+ * {@code route.distance_km} is set — and does not re-verify either itself.
  */
 @Service
 @Transactional(readOnly = true)
@@ -45,11 +46,10 @@ public class LaneResolutionService {
         if (route.distanceKm() != null) {
             // Operator-supplied override, used verbatim; bypasses the lane_distances lookup
             // entirely, including for border-post-specific distances. The Business Rules tab's
-            // "reason field required" note is deliberately NOT enforced here: RouteRequest has no
-            // distance_override_reason field, and adding one properly means a Stage 1 DTO change
-            // plus an unspecified Stage 3 validation rule (when is it required? what error code?)
-            // — real cross-stage scope beyond this pipeline stage. Decision: deferred, tracked as
-            // a project memory rather than left as an open-ended comment.
+            // "reason field required" note is enforced by Stage 3 (InputValidationService's
+            // REQUIRED_FOR_DISTANCE_OVERRIDE check) before this stage ever runs — this stage's own
+            // precondition assumption (see class Javadoc) means it doesn't re-verify
+            // distance_override_reason is present, same as it doesn't re-verify border_post_id.
             distanceKm = route.distanceKm();
             distanceOverrideApplied = true;
         } else {

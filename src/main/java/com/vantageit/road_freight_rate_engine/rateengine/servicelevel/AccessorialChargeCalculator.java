@@ -29,12 +29,6 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>Known model limitations, flagged rather than guessed:</b>
  * <ul>
- *   <li><b>Near-term fix priority</b> (see the {@code accessorial_collection_delivery_ambiguity_deferred}
- *       project memory): {@code tail_lift_required} and {@code driver_assist_required} are single
- *       undifferentiated booleans on {@link ServiceRequest} — the doc lists these as separate
- *       collection/delivery line items, but the request model can't say which end needs it. Both
- *       are applied when the flag is set, which actively overprices every single-ended shipment —
- *       not a rare-condition gap, it happens on every affected quote today.</li>
  *   <li>"Waiting time" is listed as an accessorial in the spec, but isn't implemented here. Not
  *       simply a missing {@link ServiceRequest} flag: its trigger condition ("declared at booking
  *       — exceeds 1hr free allowance") suggests the actual chargeable amount depends on real
@@ -62,12 +56,16 @@ public class AccessorialChargeCalculator {
         if (Boolean.TRUE.equals(service.afterHoursDelivery())) {
             lineItems.add(lineItemFor("AFTER_HOURS_DELIVERY", "After-hours delivery", asOfDate, expectedCurrency));
         }
-        if (Boolean.TRUE.equals(service.tailLiftRequired())) {
+        if (Boolean.TRUE.equals(service.tailLiftCollection())) {
             lineItems.add(lineItemFor("TAIL_LIFT_COLLECTION", "Tail lift — collection", asOfDate, expectedCurrency));
+        }
+        if (Boolean.TRUE.equals(service.tailLiftDelivery())) {
             lineItems.add(lineItemFor("TAIL_LIFT_DELIVERY", "Tail lift — delivery", asOfDate, expectedCurrency));
         }
-        if (Boolean.TRUE.equals(service.driverAssistRequired())) {
+        if (Boolean.TRUE.equals(service.driverAssistLoading())) {
             lineItems.add(lineItemFor("DRIVER_ASSIST_LOADING", "Driver assist — loading", asOfDate, expectedCurrency));
+        }
+        if (Boolean.TRUE.equals(service.driverAssistOffloading())) {
             lineItems.add(lineItemFor("DRIVER_ASSIST_OFFLOADING", "Driver assist — offloading", asOfDate, expectedCurrency));
         }
 
