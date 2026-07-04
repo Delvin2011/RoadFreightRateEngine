@@ -27,6 +27,7 @@ public class InputValidationService {
         List<ValidationError> errors = new ArrayList<>();
 
         errors.addAll(checkCrossBorderBorderPost(request.route()));
+        errors.addAll(checkDistanceOverrideReason(request.route()));
         errors.addAll(cargoLoadTypeCompatibility.check(request.cargo()));
         errors.addAll(checkLtlPalletCount(request.cargo()));
         errors.addAll(checkTemperatureRange(request.cargo()));
@@ -46,6 +47,21 @@ public class InputValidationService {
                     "route.border_post_id",
                     "REQUIRED_FOR_CROSS_BORDER",
                     "border_post_id is required when route_type is cross_border"));
+        }
+        return List.of();
+    }
+
+    /**
+     * The Business Rules tab uses "required" for this field with the same language as
+     * {@code REQUIRED_FOR_CROSS_BORDER}/{@code REQUIRED_FOR_HAZMAT}, both hard Stage 3 errors —
+     * treated the same way here, not as an optional audit field.
+     */
+    List<ValidationError> checkDistanceOverrideReason(RouteRequest route) {
+        if (route.distanceKm() != null && route.distanceOverrideReason() == null) {
+            return List.of(new ValidationError(
+                    "route.distance_override_reason",
+                    "REQUIRED_FOR_DISTANCE_OVERRIDE",
+                    "distance_override_reason is required when route.distance_km is provided"));
         }
         return List.of();
     }

@@ -60,7 +60,7 @@ class LaneResolutionServiceUnitTest {
         when(locationRepository.findById(locationId)).thenReturn(Optional.of(location));
 
         RouteRequest route = new RouteRequest(
-                locationId, UUID.randomUUID(), RouteType.DOMESTIC, null, null, AddressType.DEPOT, AddressType.DEPOT);
+                locationId, UUID.randomUUID(), RouteType.DOMESTIC, null, null, null, AddressType.DEPOT, AddressType.DEPOT);
         RateComputeRequest request = new RateComputeRequest(UUID.randomUUID(), LocalDate.of(2025, 7, 15), route, null, null);
 
         assertThatThrownBy(() -> service.resolve(request))

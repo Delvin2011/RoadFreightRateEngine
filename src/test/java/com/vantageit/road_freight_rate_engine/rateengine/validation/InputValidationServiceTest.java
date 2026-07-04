@@ -56,6 +56,33 @@ class InputValidationServiceTest {
     }
 
     @Test
+    void distanceOverrideWithoutReasonFailsWithSingleError() {
+        RouteRequest route = new RouteRequestBuilder()
+                .distanceKm(new BigDecimal("450.00"))
+                .distanceOverrideReason(null)
+                .build();
+
+        ValidationResult result = service.validate(request(route, validCargo().build(), validService()));
+
+        assertThat(result.errors()).hasSize(1);
+        assertThat(result.errors().get(0).code()).isEqualTo("REQUIRED_FOR_DISTANCE_OVERRIDE");
+        assertThat(result.errors().get(0).field()).isEqualTo("route.distance_override_reason");
+    }
+
+    @Test
+    void distanceOverrideWithReasonStaysValid() {
+        RouteRequest route = new RouteRequestBuilder()
+                .distanceKm(new BigDecimal("450.00"))
+                .distanceOverrideReason("Customer-confirmed shorter route via toll road")
+                .build();
+
+        ValidationResult result = service.validate(request(route, validCargo().build(), validService()));
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.errors()).isEmpty();
+    }
+
+    @Test
     void hazmatWithLtlLoadTypeFailsWithSingleIncompatibilityError() {
         CargoRequest cargo = validCargo()
                 .loadType(LoadType.LTL)
@@ -394,6 +421,8 @@ class InputValidationServiceTest {
                 false,
                 false,
                 false,
+                false,
+                false,
                 false);
     }
 
@@ -454,6 +483,7 @@ class InputValidationServiceTest {
         private RouteType routeType = RouteType.CROSS_BORDER;
         private UUID borderPostId = BORDER_POST_ID;
         private BigDecimal distanceKm = null;
+        private String distanceOverrideReason = null;
         private AddressType collectionAddressType = AddressType.DEPOT;
         private AddressType deliveryAddressType = AddressType.DOOR_TO_DOOR;
 
@@ -462,9 +492,19 @@ class InputValidationServiceTest {
             return this;
         }
 
+        RouteRequestBuilder distanceKm(BigDecimal value) {
+            this.distanceKm = value;
+            return this;
+        }
+
+        RouteRequestBuilder distanceOverrideReason(String value) {
+            this.distanceOverrideReason = value;
+            return this;
+        }
+
         RouteRequest build() {
             return new RouteRequest(originLocationId, destinationLocationId, routeType, borderPostId, distanceKm,
-                    collectionAddressType, deliveryAddressType);
+                    distanceOverrideReason, collectionAddressType, deliveryAddressType);
         }
     }
 

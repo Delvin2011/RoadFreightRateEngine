@@ -8,6 +8,7 @@ import com.vantageit.road_freight_rate_engine.rateengine.pipeline.common.Chargea
 import com.vantageit.road_freight_rate_engine.rateengine.pipeline.common.ShipmentCostEstimator;
 import com.vantageit.road_freight_rate_engine.rateengine.vehicleselection.VehicleSelectionResult;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +50,16 @@ public class BaseFreightComputationService {
 
         String lineItemComment = estimate.minimumChargeApplied() ? "Minimum charge applied." : null;
 
-        return new BaseFreightResult(estimate.amount(), rate.getCurrency(), rate.getRateBasis(), estimate.minimumChargeApplied(), lineItemComment);
+        // Rounded here, at the point the value becomes a final output (BaseFreightResult leaves
+        // this service and ends up in a LineItem) — not inside ShipmentCostEstimator itself, since
+        // Stage 5 also uses that class's estimate() for internal cost-efficient vehicle comparison,
+        // which isn't a final output and shouldn't have this stage's rounding policy imposed on it.
+        // Same class of bug as Stage 7's: PER_KM/PER_TON divide() already rounds to 4dp internally
+        // (needed there for accurate minimum_charge floor comparison against the raw, unrounded
+        // value — rounding before that comparison could change whether flooring applies at all),
+        // but nothing previously rounded the *final* amount down to a valid 2dp currency value.
+        BigDecimal baseFreightAmount = estimate.amount().setScale(2, RoundingMode.HALF_UP);
+
+        return new BaseFreightResult(baseFreightAmount, rate.getCurrency(), rate.getRateBasis(), estimate.minimumChargeApplied(), lineItemComment);
     }
 }

@@ -31,7 +31,7 @@ class AccessorialChargeCalculatorUnitTest {
     void unsetFlagsNeverQueryTheRepository() {
         AccessorialChargeCalculator calculator = new AccessorialChargeCalculator(surchargeRateRepository);
         ServiceRequest service = new ServiceRequest(
-                ServiceLevel.ECONOMY, LocalDate.of(2025, 7, 15), null, false, false, false, false, false, false);
+                ServiceLevel.ECONOMY, LocalDate.of(2025, 7, 15), null, false, false, false, false, false, false, false, false);
 
         List<LineItem> result = calculator.compute(service, LocalDate.of(2025, 7, 15), "ZAR");
 

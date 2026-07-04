@@ -105,7 +105,7 @@ class ServiceLevelComputationServiceTest {
         // Standard (1.15x) + after-hours collection (350.00) + tail lift both ends (450+450=900.00).
         // Correct: multipliedSubtotal(1495.00) + accessorials(1250.00) = 2745.00.
         // Wrong-if-multiplied: (1300.00 + 1250.00) * 1.15 = 2932.50 — must NOT equal this.
-        RateComputeRequest request = request(ServiceLevel.STANDARD, true, false, true, false);
+        RateComputeRequest request = request(ServiceLevel.STANDARD, true, false, true, true, false, false);
 
         ServiceLevelResult result = serviceLevelComputationService.compute(totals(), request);
 
@@ -116,7 +116,7 @@ class ServiceLevelComputationServiceTest {
 
     @Test
     void afterHoursCollectionAndDeliveryBothProduceDistinctLineItems() {
-        RateComputeRequest request = request(ServiceLevel.ECONOMY, true, true, false, false);
+        RateComputeRequest request = request(ServiceLevel.ECONOMY, true, true, false, false, false, false);
 
         ServiceLevelResult result = serviceLevelComputationService.compute(totals(), request);
 
@@ -129,10 +129,22 @@ class ServiceLevelComputationServiceTest {
     }
 
     @Test
-    void tailLiftAndDriverAssistApplyBothCollectionAndDeliveryConsistently() {
-        // Known model limitation (see accessorial_collection_delivery_ambiguity_deferred memory):
-        // ServiceRequest can't distinguish which end needs it, so both ends are always applied.
-        RateComputeRequest request = request(ServiceLevel.ECONOMY, false, false, true, true);
+    void tailLiftAndDriverAssistApplyIndependentlyPerEnd() {
+        // FIXED (see accessorial_collection_delivery_ambiguity_deferred memory): ServiceRequest now
+        // has 4 distinct fields instead of 2 undifferentiated ones, closing the overpricing gap —
+        // requesting only collection/loading must produce only those 2 line items, not
+        // delivery/offloading too.
+        RateComputeRequest request = request(ServiceLevel.ECONOMY, false, false, true, false, true, false);
+
+        ServiceLevelResult result = serviceLevelComputationService.compute(totals(), request);
+
+        assertThat(result.accessorialLineItems()).extracting(LineItem::code)
+                .containsExactlyInAnyOrder("TAIL_LIFT_COLLECTION", "DRIVER_ASSIST_LOADING");
+    }
+
+    @Test
+    void tailLiftAndDriverAssistApplyBothWhenBothEndsFlagged() {
+        RateComputeRequest request = request(ServiceLevel.ECONOMY, false, false, true, true, true, true);
 
         ServiceLevelResult result = serviceLevelComputationService.compute(totals(), request);
 
@@ -144,7 +156,7 @@ class ServiceLevelComputationServiceTest {
 
     @Test
     void allFourAccessorialFlagsSimultaneouslyDropsNothingAndDoubleCountsNothing() {
-        RateComputeRequest request = request(ServiceLevel.ECONOMY, true, true, true, true);
+        RateComputeRequest request = request(ServiceLevel.ECONOMY, true, true, true, true, true, true);
 
         ServiceLevelResult result = serviceLevelComputationService.compute(totals(), request);
 
@@ -187,7 +199,7 @@ class ServiceLevelComputationServiceTest {
         // (V15); requesting it against a EUR PreMultiplierTotals must be rejected, not computed.
         // Actually reconciling (converting) mismatched currencies remains Stage 8's job — this only
         // proves Stage 7 no longer proceeds blind to the mismatch.
-        RateComputeRequest request = request(ServiceLevel.ECONOMY, true, false, false, false);
+        RateComputeRequest request = request(ServiceLevel.ECONOMY, true, false, false, false, false, false);
         PreMultiplierTotals eurTotals = new PreMultiplierTotals(new BigDecimal("1000.00"), new BigDecimal("200.00"), new BigDecimal("100.00"), "EUR");
 
         assertThatThrownBy(() -> serviceLevelComputationService.compute(eurTotals, request))
@@ -202,7 +214,7 @@ class ServiceLevelComputationServiceTest {
 
     @Test
     void runningTotalExactlyMatchesIndependentlySummedTotal() {
-        RateComputeRequest request = request(ServiceLevel.EXPRESS, true, true, true, false);
+        RateComputeRequest request = request(ServiceLevel.EXPRESS, true, true, true, true, false, false);
 
         ServiceLevelResult result = serviceLevelComputationService.compute(totals(), request);
 
@@ -213,7 +225,7 @@ class ServiceLevelComputationServiceTest {
 
     @Test
     void noAccessorialFlagsProducesEmptyListNotNull() {
-        RateComputeRequest request = request(ServiceLevel.STANDARD, false, false, false, false);
+        RateComputeRequest request = request(ServiceLevel.STANDARD, false, false, false, false, false, false);
 
         ServiceLevelResult result = serviceLevelComputationService.compute(totals(), request);
 
@@ -227,7 +239,7 @@ class ServiceLevelComputationServiceTest {
         // finds no active row.
         RateComputeRequest request = new RateComputeRequest(
                 UUID.randomUUID(), LocalDate.of(2024, 1, 1), null, null,
-                serviceRequest(ServiceLevel.ECONOMY, true, false, false, false, LocalDate.of(2024, 1, 1)));
+                serviceRequest(ServiceLevel.ECONOMY, true, false, false, false, false, false, LocalDate.of(2024, 1, 1)));
 
         assertThatThrownBy(() -> serviceLevelComputationService.compute(totals(), request))
                 .isInstanceOf(AccessorialRateNotFoundException.class)
@@ -249,7 +261,7 @@ class ServiceLevelComputationServiceTest {
     }
 
     private ServiceLevelResult compute(PreMultiplierTotals totals, ServiceLevel serviceLevel) {
-        RateComputeRequest request = request(serviceLevel, false, false, false, false);
+        RateComputeRequest request = request(serviceLevel, false, false, false, false, false, false);
         return serviceLevelComputationService.compute(totals, request);
     }
 
@@ -258,16 +270,20 @@ class ServiceLevelComputationServiceTest {
     }
 
     private static RateComputeRequest request(
-            ServiceLevel serviceLevel, boolean afterHoursCollection, boolean afterHoursDelivery, boolean tailLift, boolean driverAssist) {
+            ServiceLevel serviceLevel, boolean afterHoursCollection, boolean afterHoursDelivery,
+            boolean tailLiftCollection, boolean tailLiftDelivery, boolean driverAssistLoading, boolean driverAssistOffloading) {
         return new RateComputeRequest(UUID.randomUUID(), RATE_DATE, null, null,
-                serviceRequest(serviceLevel, afterHoursCollection, afterHoursDelivery, tailLift, driverAssist, RATE_DATE));
+                serviceRequest(serviceLevel, afterHoursCollection, afterHoursDelivery,
+                        tailLiftCollection, tailLiftDelivery, driverAssistLoading, driverAssistOffloading, RATE_DATE));
     }
 
     private static ServiceRequest serviceRequest(
             ServiceLevel serviceLevel, boolean afterHoursCollection, boolean afterHoursDelivery,
-            boolean tailLift, boolean driverAssist, LocalDate collectionDate) {
+            boolean tailLiftCollection, boolean tailLiftDelivery, boolean driverAssistLoading, boolean driverAssistOffloading,
+            LocalDate collectionDate) {
         return new ServiceRequest(
                 serviceLevel, collectionDate, null,
-                afterHoursCollection, afterHoursDelivery, tailLift, driverAssist, false, false);
+                afterHoursCollection, afterHoursDelivery, tailLiftCollection, tailLiftDelivery,
+                driverAssistLoading, driverAssistOffloading, false, false);
     }
 }

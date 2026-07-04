@@ -280,7 +280,7 @@ class VehicleSelectionServiceTest {
 
     private static RateComputeRequest request(CargoRequest cargo, boolean dedicatedVehicle) {
         ServiceRequest service = new ServiceRequest(
-                ServiceLevel.STANDARD, LocalDate.of(2025, 7, 15), null, false, false, false, false, dedicatedVehicle, false);
+                ServiceLevel.STANDARD, LocalDate.of(2025, 7, 15), null, false, false, false, false, false, false, dedicatedVehicle, false);
         return new RateComputeRequest(UUID.randomUUID(), LocalDate.of(2025, 7, 15), null, cargo, service);
     }
 }
