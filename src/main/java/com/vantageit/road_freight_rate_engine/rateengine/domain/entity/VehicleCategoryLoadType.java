@@ -15,11 +15,13 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /** One load type a vehicle category supports. A vehicle category can support several. */
 @Entity
 @Table(name = "vehicle_category_load_types")
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED, force = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -31,11 +33,11 @@ public class VehicleCategoryLoadType {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vehicle_category_id", nullable = false, updatable = false)
+    @JoinColumn(name = "vehicle_category_id", nullable = false)
     private VehicleCategory vehicleCategory;
 
     /** Matches Stage 1's {@code LoadType} wire values (e.g. {@code "ftl"}), stored as a plain string. */
-    @Column(name = "load_type", nullable = false, length = 20, updatable = false)
+    @Column(name = "load_type", nullable = false, length = 20)
     private String loadType;
 
     @Override

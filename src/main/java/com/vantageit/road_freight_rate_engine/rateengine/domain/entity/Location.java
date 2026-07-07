@@ -16,11 +16,13 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /** What {@code origin_location_id}/{@code destination_location_id} in the API request refer to. */
 @Entity
 @Table(name = "locations")
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED, force = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -32,17 +34,17 @@ public class Location {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "zone_id", nullable = false, updatable = false)
+    @JoinColumn(name = "zone_id", nullable = false)
     private Zone zone;
 
-    @Column(name = "name", nullable = false, length = 255, updatable = false)
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column(name = "address", length = 500, updatable = false)
+    @Column(name = "address", length = 500)
     private String address;
 
     /** Informational only (e.g. depot, port, inland_depot, client_site) — not used for logic. */
-    @Column(name = "location_type", length = 30, updatable = false)
+    @Column(name = "location_type", length = 30)
     private String locationType;
 
     @Column(name = "created_at", nullable = false, updatable = false)

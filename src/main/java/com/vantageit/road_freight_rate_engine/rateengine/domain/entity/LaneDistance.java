@@ -17,6 +17,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * The pre-computed distance matrix. {@code borderPost} is null for domestic lanes; populated for
@@ -26,6 +27,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "lane_distances")
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED, force = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -37,18 +39,18 @@ public class LaneDistance {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "origin_zone_id", nullable = false, updatable = false)
+    @JoinColumn(name = "origin_zone_id", nullable = false)
     private Zone originZone;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "destination_zone_id", nullable = false, updatable = false)
+    @JoinColumn(name = "destination_zone_id", nullable = false)
     private Zone destinationZone;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "border_post_id", updatable = false)
+    @JoinColumn(name = "border_post_id")
     private BorderPost borderPost;
 
-    @Column(name = "distance_km", nullable = false, precision = 10, scale = 2, updatable = false)
+    @Column(name = "distance_km", nullable = false, precision = 10, scale = 2)
     private BigDecimal distanceKm;
 
     @Column(name = "is_active", nullable = false)
